@@ -1,0 +1,402 @@
+<html>
+<head>
+<style>
+   :root {
+      background: var(--color-base);
+      color: var(--color-text);
+      font: 14px Sans-Serif;
+      --color-base: white;
+      --color-alt: whitesmoke;
+      --color-brand: forestgreen;
+      --color-text: black;
+      --color-text-invert: white;
+      --color-text-link: royalblue;
+      --color-border: lightgray;
+      --color-hover: lightgray;
+      --color-base-translucent: rgba(255,255,255,0.85);
+   }
+   @media (prefers-color-scheme: dark) {
+      :root {
+         --color-base: black;
+         --color-alt: #171717;
+         --color-brand: forestgreen;
+         --color-text: #bababa;
+         --color-text-invert: black;
+         --color-text-link: cornflowerblue;
+         --color-border: #444;
+         --color-hover: #444;
+         --color-base-translucent: rgba(0,0,0,0.85);
+      }
+   }
+   #main { width:100%; }
+   .icon { height:28px; width=28px; }
+   .night { background: #222222; }
+   .day { background: #333344; }
+</style>
+</head>
+<body>
+<div id="weather">
+
+<script>
+
+function getReq(url) {
+  return fetch(url)
+    .then( response => {
+      if (!response.ok) { throw new Error( `${response.status}: ${response.statusText}` ); };
+      return response.json();
+    })
+    .then( data => { return data; })
+    .catch( err => { console.error(err); });
+};
+
+function objAtDateTime(searchArray,searchProp,datetime) {
+  return searchArray.find( obj => obj[searchProp].substring(0,19) === datetime.substring(0,19) );
+};
+
+function datetimeAtUTC(s) {
+  let d = s.split(/\D+/);
+  let o = (s.search('[\+]')>=0)?-1:1;
+  let t = new Date(Date.UTC(d[0], d[1]-1 /*months:0-11*/, d[2], d[3], d[4], d[5]) + ((d[6]||0)*3600000*o) + ((d[7]||0)*60000*o) );  // these dates don't come with milliseconds
+  return `${t.getUTCFullYear()}-${(t.getUTCMonth()+1).toString().padStart(2,'0')}-${t.getUTCDate().toString().padStart(2,'0')}T${t.getUTCHours().toString().padStart(2,'0')}:${t.getUTCMinutes().toString().padStart(2,'0')}:${t.getUTCSeconds().toString().padStart(2,'0')}`;
+};
+
+function detailsHours(datetimeString) {
+  let duration = datetimeString.split('/P')[1];
+  return duration.split('T').reduce( (accumulator, currentValue) => accumulator + ((currentValue.substring(0,currentValue.length-1)||0)*(currentValue.substring(currentValue.length-1)==='D'?24:1)), 0 );
+}
+
+function bearingCompassDirection(deg) {
+  let c = ['N','NE','E','SE','S','SW','W','NW']
+  return ( deg < 0 || deg > 360) ? '??'
+    : deg < 22.5 ? c[0]
+    : deg < 67.5 ? c[1]
+    : deg < 112.5 ? c[2]
+    : deg < 157.5 ? c[3]
+    : deg < 202.5 ? c[4]
+    : deg < 247.5 ? c[5]
+    : deg < 292.5 ? c[6]
+    : deg < 337.5 ? c[7]
+    : c[0];
+};
+
+
+// P-VTEC phenomenon and significance codes from NWS Directive 10-1703: 
+// https://www.nws.noaa.gov/directives/010/archive/pd01017003c.pdf
+
+let hazardsPhenomenon = {
+// WINTER 
+  BZ: 'Blizzard',
+  WS: 'Winter Storm',
+  WW: 'Winter Weather',
+  SN: 'Snow',
+  HS: 'Heavy Snow',
+  LE: 'Lake Effect Snow',
+  BS: 'Blowing Snow',
+  SB: 'Snow and Blowing Snow',
+  LB: 'Lake Effect Snow and Blowing Snow',
+  IP: 'Sleet',
+  ZR: 'Freezing Rain',
+  IS: 'Ice Storm',
+  WC: 'Wind Chill',
+// NON-PRECIPITAION
+  DU: 'Blowing Dust',
+  DS: 'Dust Storm',
+  WI: 'Wind',
+  HW: 'High Wind',
+  LW: 'Lake Wind',
+  SM: 'Dense Smoke (land)',
+  FG: 'Dense Fog (land)',
+  ZF: 'Freezing Fog',
+  HZ: 'Hard Freeze',
+  FZ: 'Freeze',
+  FR: 'Frost',
+  HT: 'Heat',
+  EH: 'Excessive Heat',
+  EC: 'Extreme Cold',
+// HYDROLOGIC
+  DF: 'Debris Flow',
+  FL: 'Flood',
+  FA: 'Areal Flood',
+  FF: 'Flash Flood',
+  HY: 'Hydrologic',
+// MARINE AND COASTAL
+  MA: 'Marine',
+  ZY: 'Freezing Spray',
+  UP: 'Heavy Freezing Spray',
+  SC: 'Small Craft',
+  SI: 'Small Craft for Winds',
+  SW: 'Small Craft for Hazardous Seas',
+  RB: 'Small Craft for Rough Bar',
+  BW: 'Brisk Wind',
+  GL: 'Gale',
+  SE: 'Hazardous Seas',
+  SR: 'Storm',
+  HF: 'Hurricane Force Wind',
+  LS: 'Lakeshore Flood',
+  CF: 'Coastal Flood',
+  SU: 'High Surf',
+  TS: 'Tsunami',
+  LO: 'Low Water',
+  MF: 'Dense Fog (marine)',
+  MS: 'Dense Smoke (marine)',
+  MH: 'Ashfall (marine)',
+// SEVERE STORMS
+  SV: 'Severe Thunderstorm',
+  TO: 'Tornado',
+// TROPICAL
+  TR: 'Tropical Storm',
+  HU: 'Hurricane',
+  TY: 'Typhoon',
+  TI: 'Tropical Storm Wind',
+  HI: 'Hurricane Wind',
+  EW: 'Extreme Wind',
+// OTHER
+  AS: 'Air Stagnation',
+  FW: 'Fire Weather',
+  AF: 'Ashfall (land)',
+  AF: 'Ashfall (land)',
+  AS: 'Air Stagnation',
+  BS: 'Blowing Snow',
+  BW: 'Brisk Wind',
+  BZ: 'Blizzard',
+  CF: 'Coastal Flood',
+  DF: 'Debris Flow',
+  DS: 'Dust Storm',
+  DU: 'Blowing Dust',
+  EC: 'Extreme Cold',
+  EH: 'Excessive Heat',
+  EW: 'Extreme Wind',
+  FA: 'Areal Flood',
+  FF: 'Flash Flood',
+  FG: 'Dense Fog (land)',
+  FL: 'Flood',
+  FR: 'Frost',
+  FW: 'Fire Weather',
+  FZ: 'Freeze',
+  GL: 'Gale',
+  HF: 'Hurricane Force Wind',
+  HI: 'Hurricane Wind',
+  HS: 'Heavy Snow',
+  HT: 'Heat',
+  HU: 'Hurricane',
+  HW: 'High Wind',
+  HY: 'Hydrologic',
+  HZ: 'Hard Freeze',
+  IP: 'Sleet',
+  IS: 'Ice Storm',
+  LB: 'Lake Effect Snow and Blowing Snow',
+  LE: 'Lake Effect Snow',
+  LO: 'Low Water',
+  LS: 'Lakeshore Flood',
+  LW: 'Lake Wind',
+  MA: 'Marine',
+  MF: 'Dense Fog (marine)',
+  MH: 'Ashfall (marine)',
+  MS: 'Dense Smoke (marine)',
+  RB: 'Small Craft for Rough Bar',
+  SB: 'Snow and Blowing Snow',
+  SC: 'Small Craft',
+  SE: 'Hazardous Seas',
+  SI: 'Small Craft for Winds',
+  SM: 'Dense Smoke (land)',
+  SN: 'Snow',
+  SR: 'Storm',
+  SU: 'High Surf',
+  SV: 'Severe Thunderstorm',
+  SW: 'Small Craft for Hazardous Seas',
+  TI: 'Tropical Storm Wind',
+  TO: 'Tornado',
+  TR: 'Tropical Storm',
+  TS: 'Tsunami',
+  TY: 'Typhoon',
+  UP: 'Heavy Freezing Spray',
+  WC: 'Wind Chill',
+  WI: 'Wind',
+  WS: 'Winter Storm',
+  WW: 'Winter Weather',
+  ZF: 'Freezing Fog',
+  ZR: 'Freezing Rain',
+  ZY: 'Freezing Spray',
+};
+
+let hazardsSignificance = {
+  W: 'Warning',
+  A: 'Watch',
+  Y: 'Advisory',
+  S: 'Statement',
+  F: 'Forecast',
+  O: 'Outlook',
+  N: 'Synopsis'
+};
+
+function getWeather(container,lat,lng) {
+  getReq(`https://api.weather.gov/points/${lat},${lng}`)
+  .then( data => {
+    let results = data?.properties;
+    if (!results) { return container.innerHTML += 'There was a problem retrieving data from Weather.gov (step 1). Please wait a minute or two and try refreshing the page.'; } 
+    let forecastProms = [
+      Promise.resolve(container),
+      Promise.resolve(results),
+      getReq(results.forecast),
+      getReq(results.forecastHourly),
+      getReq(results.forecastGridData),
+    ];
+    Promise.all(forecastProms)
+    .then( item => {
+      let container = item[0];
+      let baseRequest = item[1];
+      let summary = item[2]?.properties;
+      let hourly = item[3]?.properties;
+      let details = item[4]?.properties;
+      if (!summary?.updateTime || !hourly?.updateTime || !details?.updateTime) { return container.innerHTML += 'There was a problem retrieving data from Weather.gov (step 2). Please wait a few seconds and try refreshing the page.'; };
+
+      let containerHTML = `<h2>Weather Forecast</h2>`
+        + `<h3>Lat ${baseRequest.relativeLocation.geometry.coordinates[1]} Lng ${baseRequest.relativeLocation.geometry.coordinates[0]}</h3>`
+        + `<h3>${Math.round(baseRequest.relativeLocation.properties.distance.value/16.09344)/100} mi ${bearingCompassDirection(baseRequest.relativeLocation.properties.bearing.value)} of the centroid of ${baseRequest.relativeLocation.properties.city}, ${baseRequest.relativeLocation.properties.state}</h3>`
+        + `<h3>last updated: ${summary.updateTime.split('T').join(' ')}</h3>`;
+/*
+      containerHTML += summary.periods.map( period => {
+        return `<div>${period.name}: ${period.detailedForecast}</div>`;
+      }).join('');
+      containerHTML += hourly.periods.map( period => {
+        return `<div>${period.startTime}: <img src="${period.icon}"></div>`;
+      }).join('');
+*/
+      // create base weather data array based on hourly data
+      let weatherData = hourly.periods.map( period => {
+        return {
+           hour: period.startTime.substring(0,19),
+           hourUTC: datetimeAtUTC(period.startTime),
+           isDaytime: period.isDaytime,
+           temperatureF: period.temperature,
+           temperatureFUnit: period.temperatureUnit,
+           windSpeed: period.windSpeed,
+           windDirectionBearing: period.windDirection,
+           icon: period.icon,
+           shortForecast: period.shortForecast
+        };
+      });
+
+      // add summary data to weather data array
+      let counter = 0;
+      for (let i=weatherData.length; i>0; i--) {
+        counter++;
+        let rec = weatherData[i-1]; 
+        let recSum = objAtDateTime(summary.periods,'startTime',rec.hour);
+        if (recSum || i===1) {
+          if (!recSum && i===1) { recSum = summary.periods[0] ?? { name:'N/A', detailedForecast:'N/A' } };
+          rec['summary'] = recSum.name;
+          rec['summaryForecast'] = recSum.detailedForecast;
+          rec['summaryHours'] = counter;
+          counter = 0;
+          if (recSum === summary.periods[0]) { break ;};
+        };
+      };
+
+      // get additional details
+      let detailsArray = ['temperature','hazards','relativeHumidity','windDirection','probabilityOfPrecipitation','quantitativePrecipitation','skyCover','dewpoint','lightningActivityLevel'];
+      for (weatherProp of detailsArray) {
+        propArray = details[weatherProp];
+        let uom = propArray.uom;
+        let prevMatchFound = false;
+        for (p=0; p<propArray.values.length; p++) {
+          rec = propArray.values[p];
+          let period = rec.validTime;
+          let recDatasetFirstRec = objAtDateTime(weatherData,'hourUTC',period.substring(0,19));
+          if (recDatasetFirstRec) {
+            // this record may represent the value over several hours. so populate several hours with the same value, if needed.
+            let recsInPeriod = detailsHours(rec.validTime);
+            let startPosition = weatherData.indexOf(recDatasetFirstRec)
+            for (i=0; i<recsInPeriod; i++) {
+              recData = weatherData[i+startPosition];
+              if (recData) {
+                if (weatherProp === 'hazards') {
+                  recData[weatherProp] = rec.value.map(v => {return `${hazardsSignificance[v.significance]}: ${hazardsPhenomenon[v.phenomenon]}`}).join('; ');
+                }
+                else {
+                  recData[weatherProp] = rec.value;
+                  if (uom) { recData[weatherProp+'Unit'] = uom; };
+                  if (weatherProp === 'quantitativePrecipitation') { recData[weatherProp+'Hours'] = recsInPeriod; };
+                }; 
+              };
+            };
+            // if there are unmatched earlier hours, force a match with the previous record.
+            if (!prevMatchFound) {
+              for (i=0; i<startPosition; i++) {
+                recPrev = propArray.values[p-1];
+                recData = weatherData[i];
+                if (recData && recPrev) {
+                  if (weatherProp === 'hazards') {
+                    recData[weatherProp] = recPrev.value.map(v => {return `${hazardsSignificance[v.significance]}: ${hazardsPhenomenon[v.phenomenon]}`}).join('; ');
+                  }
+                  else {
+                    recData[weatherProp] = recPrev.value;
+                    if (uom) { recData[weatherProp+'Unit'] = uom; };
+                    if (weatherProp === 'quantitativePrecipitation') { recData[weatherProp+'Hours'] = detailsHours(recPrev.validTime); };
+                  };
+                };
+              };
+              prevMatchFound = true;
+            };
+          };
+        };
+      };
+
+      // final table 
+      containerHTML += `<table><thead><tr>`
+        + `<th>Forecast Summary</th>`
+        + `<th>Date & Time</th>`
+        //+ `<th>TempF</th>`
+        + `<th>Temp</th>`
+        + `<th>Conditions</th>`
+        + `<th>Icon</th>`
+        + `<th>Precip Chance</th>`
+        + `<th>Precip Amt (inches)</th>`
+        // + `<th>Lightning Level</th>`
+        + `<th>Wind Direction & Speed</th>`
+        + `<th>Sky Cover</th>`
+        + `<th>Humidity</th>`
+        + `<th>Dew Point</th>`
+        + `<th>Hazard</th>`
+        + `</tr></thead><tbody>`
+      containerHTML += weatherData.map( period => {
+        return `<tr class="${period.isDaytime?'day':'night'}">`
+          + ((!period.summary) ? `` : `<td width='300px' rowspan=${period.summaryHours}>${period.summary}: ${period.summaryForecast}</td>`)
+          + `<td>${period.hour.substring(0,10)} ${period.hour.substring(11,16)}</td>`
+          + `<td>${period.temperatureF}&#176;${period.temperatureFUnit}</td>`
+          //+ `<td>${Math.round((period.temperature*1.8)+32.0)}&#176;F</td>` // just for comparison
+          + `<td>${period.shortForecast}</td>`
+          + `<td><img class="icon" src="${period.icon}"></td>`
+          + `<td>${(period.probabilityOfPrecipitation==undefined) ? '??' : period.probabilityOfPrecipitation ? (period.probabilityOfPrecipitation + '%') : '--'}</td>`
+          + `<td>${(period.quantitativePrecipitation==undefined) ? '??' : period.quantitativePrecipitation ? ((Math.round(period.quantitativePrecipitation*0.03937008*100)/100) + ' (over ' + period.quantitativePrecipitationHours + 'hrs)') : '--'}</td>`
+          // + `<td>${period.lightningActivityLevel||'N/A'}</td>`
+          + `<td>${period.windDirectionBearing} (${period.windDirection}&#176;) at ${period.windSpeed}</td>`
+          + `<td>${(period.skyCover==undefined) ? '??' : period.skyCover ? (period.skyCover + '%') : '--'}</td>`
+          + `<td>${(period.relativeHumidity==undefined) ? '??' : period.relativeHumidity ? (period.relativeHumidity + '%') : '--'}</td>`
+          + `<td>${(period.dewpoint==undefined) ? '??' : period.dewpoint ? (Math.round((period.dewpoint*1.8)+32.0) + '&#176;F') : '--'}</td>`
+          + `<td>${period.hazards||''}</td>`
+          + `</tr>`;
+      }).join(''); 
+      containerHTML += `</tbody></table>`
+      container.innerHTML += containerHTML;
+      return container;
+    });
+  });
+};
+
+//get parameters from the url
+let winURLString = window.location.href;
+let winURLSearchString = window.location.search;
+let winURLStringExclSearch = winURLString.replace(winURLSearchString,'');
+let winURLParams = new URLSearchParams(winURLSearchString.substring(1));
+
+let latDefault = 29.744440;
+let lngDefault = -95.367900;
+let lat = winURLParams.get('lat') ?? winURLParams.get('latitude') ?? latDefault;
+let lng = winURLParams.get('lng') ?? winURLParams.get('long') ?? winURLParams.get('longitude') ?? lngDefault;
+let weather = getWeather(document.getElementById('weather'),lat,lng);
+
+</script>
+
+</body>
+</html>
