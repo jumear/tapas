@@ -253,15 +253,9 @@ function getWeather(container,lat,lng) {
       let containerHTML = `<h2>Weather Forecast</h2>`
         + `<h3>Lat ${baseRequest.relativeLocation.geometry.coordinates[1]} Lng ${baseRequest.relativeLocation.geometry.coordinates[0]}</h3>`
         + `<h3>${Math.round(baseRequest.relativeLocation.properties.distance.value/16.09344)/100} mi ${bearingCompassDirection(baseRequest.relativeLocation.properties.bearing.value)} of the centroid of ${baseRequest.relativeLocation.properties.city}, ${baseRequest.relativeLocation.properties.state}</h3>`
-        + `<h3>last updated: ${summary.updateTime.split('T').join(' ')}</h3>`;
-/*
-      containerHTML += summary.periods.map( period => {
-        return `<div>${period.name}: ${period.detailedForecast}</div>`;
-      }).join('');
-      containerHTML += hourly.periods.map( period => {
-        return `<div>${period.startTime}: <img src="${period.icon}"></div>`;
-      }).join('');
-*/
+        + `<h3>last updated: ${summary.updateTime.split('T').join(' ')}</h3>`
+        + `<div id='mapdiv'></div>`;
+
       // create base weather data array based on hourly data
       let weatherData = hourly.periods.map( period => {
         return {
@@ -284,12 +278,12 @@ function getWeather(container,lat,lng) {
         let rec = weatherData[i-1]; 
         let recSum = objAtDateTime(summary.periods,'startTime',rec.hour);
         if (recSum || i===1) {
-          if (!recSum && i===1) { recSum = summary.periods[0] ?? { name:'N/A', detailedForecast:'N/A' } };
+          if (!recSum && i===1) { recSum = { name: 'N/A', detailedForecast: 'N/A' } };
           rec['summary'] = recSum.name;
           rec['summaryForecast'] = recSum.detailedForecast;
           rec['summaryHours'] = counter;
           counter = 0;
-          if (recSum === summary.periods[0]) { break ;};
+          //if (recSum === summary.periods[0]) { break ;};
         };
       };
 
@@ -306,12 +300,15 @@ function getWeather(container,lat,lng) {
           if (recDatasetFirstRec) {
             // this record may represent the value over several hours. so populate several hours with the same value, if needed.
             let recsInPeriod = detailsHours(rec.validTime);
-            let startPosition = weatherData.indexOf(recDatasetFirstRec)
+            let startPosition = weatherData.indexOf(recDatasetFirstRec);
             for (i=0; i<recsInPeriod; i++) {
               recData = weatherData[i+startPosition];
               if (recData) {
                 if (weatherProp === 'hazards') {
-                  recData[weatherProp] = rec.value.map(v => {return `${hazardsSignificance[v.significance]}: ${hazardsPhenomenon[v.phenomenon]}`}).join('; ');
+                  recData[weatherProp] = rec.value.map(v => {
+                    let hazPhen = hazardsPhenomenon[v.phenomenon];
+                    return `${hazardsSignificance[v.significance]}: ${hazPhen + (hazPhen ? '' : ' ('+v.phenomenon+')')}`
+                  }).join('; ');
                 }
                 else {
                   recData[weatherProp] = rec.value;
@@ -327,7 +324,10 @@ function getWeather(container,lat,lng) {
                 recData = weatherData[i];
                 if (recData && recPrev) {
                   if (weatherProp === 'hazards') {
-                    recData[weatherProp] = recPrev.value.map(v => {return `${hazardsSignificance[v.significance]}: ${hazardsPhenomenon[v.phenomenon]}`}).join('; ');
+                    recData[weatherProp] = recPrev.value.map(v => {
+                      let hazPhen = hazardsPhenomenon[v.phenomenon];
+                      return `${hazardsSignificance[v.significance]}: ${hazPhen + (hazPhen ? '' : ' ('+v.phenomenon+')')}`
+                    }).join('; ');
                   }
                   else {
                     recData[weatherProp] = recPrev.value;
@@ -361,7 +361,7 @@ function getWeather(container,lat,lng) {
         + `</tr></thead><tbody>`
       containerHTML += weatherData.map( period => {
         return `<tr class="${period.isDaytime?'day':'night'}">`
-          + ((!period.summary) ? `` : `<td width='300px' rowspan=${period.summaryHours}>${period.summary}: ${period.summaryForecast}</td>`)
+          + ((!period.summary) ? `` : `<td width='300px' rowspan=${period.summaryHours}>${(period.summary==='N/A')?'':(period.summary+': '+period.summaryForecast)}</td>`)
           + `<td>${period.hour.substring(0,10)} ${period.hour.substring(11,16)}</td>`
           + `<td>${period.temperatureF}&#176;${period.temperatureFUnit}</td>`
           //+ `<td>${Math.round((period.temperature*1.8)+32.0)}&#176;F</td>` // just for comparison
