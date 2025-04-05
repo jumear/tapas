@@ -306,7 +306,7 @@ function getWeather(container,lat,lng) {
               if (recData) {
                 if (weatherProp === 'hazards') {
                   recData[weatherProp] = rec.value.map(v => {
-                    hazPhen = hazardsPhenomenon[v.phenomenon];
+                    let hazPhen = hazardsPhenomenon[v.phenomenon];
                     return `${hazardsSignificance[v.significance]}: ${hazPhen + (hazPhen ? '' : ' ('+v.phenomenon+')')}`
                   }).join('; ');
                 }
@@ -325,7 +325,7 @@ function getWeather(container,lat,lng) {
                 if (recData && recPrev) {
                   if (weatherProp === 'hazards') {
                     recData[weatherProp] = recPrev.value.map(v => {
-                      hazPhen = hazardsPhenomenon[v.phenomenon];
+                      let hazPhen = hazardsPhenomenon[v.phenomenon];
                       return `${hazardsSignificance[v.significance]}: ${hazPhen + (hazPhen ? '' : ' ('+v.phenomenon+')')}`
                     }).join('; ');
                   }
