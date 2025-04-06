@@ -353,7 +353,7 @@ function getWeather(container,lat,lng) {
         + `<th>Precip Chance</th>`
         + `<th>Precip Amt (inches)</th>`
         // + `<th>Lightning Level</th>`
-        + `<th>Wind Direction & Speed</th>`
+        + `<th>Wind Speed & Direction</th>`
         + `<th>Sky Cover</th>`
         + `<th>Humidity</th>`
         + `<th>Dew Point</th>`
@@ -370,7 +370,7 @@ function getWeather(container,lat,lng) {
           + `<td>${(period.probabilityOfPrecipitation==undefined) ? '??' : period.probabilityOfPrecipitation ? (period.probabilityOfPrecipitation + '%') : '--'}</td>`
           + `<td>${(period.quantitativePrecipitation==undefined) ? '??' : period.quantitativePrecipitation ? ((Math.round(period.quantitativePrecipitation*0.03937008*100)/100) + ' (over ' + period.quantitativePrecipitationHours + 'hrs)') : '--'}</td>`
           // + `<td>${period.lightningActivityLevel||'N/A'}</td>`
-          + `<td>${period.windDirectionBearing} (${period.windDirection}&#176;) at ${period.windSpeed}</td>`
+          + `<td>${period.windSpeed} from ${period.windDirectionBearing} (${period.windDirection}&#176;)</td>`
           + `<td>${(period.skyCover==undefined) ? '??' : period.skyCover ? (period.skyCover + '%') : '--'}</td>`
           + `<td>${(period.relativeHumidity==undefined) ? '??' : period.relativeHumidity ? (period.relativeHumidity + '%') : '--'}</td>`
           + `<td>${(period.dewpoint==undefined) ? '??' : period.dewpoint ? (Math.round((period.dewpoint*1.8)+32.0) + '&#176;F') : '--'}</td>`
